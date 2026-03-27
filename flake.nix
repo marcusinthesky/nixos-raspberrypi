@@ -290,6 +290,7 @@
           # WAN2: Spaces office ethernet — lower metric (preferred)
           networks."15-wan-spaces" = {
             matchConfig.Name = "enu1";
+            linkConfig.RequiredForOnline = "no"; # don't block boot if unplugged
             networkConfig = {
               DHCP = "ipv4";
               DNSOverTLS = false;
