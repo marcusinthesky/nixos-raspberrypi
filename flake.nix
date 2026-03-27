@@ -222,15 +222,7 @@
 
         environment.systemPackages = with pkgs; [
           tree
-
-          # Browsers (google-chrome has no aarch64 build)
-          chromium
-          firefox
-
-          # Editors
           vim
-
-          # System utilities
           htop
           git
 
@@ -241,26 +233,12 @@
           ethtool
         ];
 
-        # GNOME Desktop Environment
-        services.xserver.enable = true;
-        services.desktopManager.gnome.enable = true;
-        services.displayManager.gdm.enable = true;
-        services.displayManager.gdm.wayland = true;
-
         # VS Code Server (remote SSH from your workstation)
         imports = [ vscode-server.nixosModules.default ];
         services.vscode-server.enable = true;
 
         # nix-ld fallback for dynamically linked binaries
         programs.nix-ld.enable = true;
-
-        # Fonts
-        fonts.enableDefaultPackages = true;
-        fonts.packages = with pkgs; [
-          noto-fonts
-          noto-fonts-color-emoji
-          nerd-fonts.jetbrains-mono
-        ];
 
         # ── Router / NAT configuration ──
         # Pi acts as a gateway: Rain 5G (WAN) → Pi → Switch + AX73 AP (LAN)
