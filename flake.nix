@@ -241,11 +241,10 @@
         programs.nix-ld.enable = true;
 
         # ── Router / NAT configuration ──
-        # Pi acts as a gateway: Rain 5G (WAN) → Pi → Switch + AX73 AP (LAN)
-        # Interface mapping (from `ip link show`):
-        #   WAN = end0 (built-in ethernet → Rain 5G router)
-        #   LAN = eth0 (USB-Ethernet adapter → 8-port switch → AX73 AP)
-        #   enu1 = spare (for Spaces ethernet / bonding later)
+        # Pi acts as a gateway with dual WAN:
+        #   WAN1 = end0 (built-in ethernet → Rain 5G router) — failover
+        #   WAN2 = enu1 (USB-Ethernet → Spaces office ethernet) — primary
+        #   LAN  = eth0 (USB-Ethernet → 8-port switch → AX73 AP)
         boot.kernel.sysctl."net.ipv4.ip_forward" = 1;
 
         networking = {
@@ -258,13 +257,13 @@
           firewall.trustedInterfaces = [ "eth0" ]; # trust LAN side
         };
 
-        # nftables NAT rule
+        # nftables NAT — masquerade out both WAN interfaces
         networking.nftables.tables.nat = {
           family = "ip";
           content = ''
             chain postrouting {
               type nat hook postrouting priority 100; policy accept;
-              oifname "end0" masquerade
+              oifname { "end0", "enu1" } masquerade
             }
           '';
         };
@@ -272,14 +271,30 @@
         systemd.network = {
           enable = true;
 
-          # WAN interface — gets IP from Rain 5G via DHCP
-          networks."10-wan" = {
+          # Spaces WAN — clone laptop MAC to bypass captive portal
+          links."30-spaces" = {
+            matchConfig.OriginalName = "enu1";
+            linkConfig.MACAddress = "dc:97:ba:60:b7:a1";
+          };
+
+          # WAN1: Rain 5G — higher metric (failover)
+          networks."10-wan-rain" = {
             matchConfig.Name = "end0";
             networkConfig = {
               DHCP = "ipv4";
               DNSOverTLS = false;
             };
-            dhcpV4Config.RouteMetric = 100;
+            dhcpV4Config.RouteMetric = 200; # lower priority
+          };
+
+          # WAN2: Spaces office ethernet — lower metric (preferred)
+          networks."15-wan-spaces" = {
+            matchConfig.Name = "enu1";
+            networkConfig = {
+              DHCP = "ipv4";
+              DNSOverTLS = false;
+            };
+            dhcpV4Config.RouteMetric = 100; # higher priority
           };
 
           # LAN interface — static IP, serves as gateway for the team
