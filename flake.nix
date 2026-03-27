@@ -30,9 +30,14 @@
     };
 
     flake-compat.url = "github:edolstra/flake-compat";
+
+    vscode-server = {
+      url = "github:nix-community/nixos-vscode-server";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
-  outputs = { self, nixpkgs, argononed, nixos-images, ... }@inputs: let
+  outputs = { self, nixpkgs, argononed, nixos-images, vscode-server, ... }@inputs: let
     rpiSystems = [ "aarch64-linux" "armv7l-linux" "armv6l-linux" ];
     allSystems = nixpkgs.lib.systems.flakeExposed;
     forSystems = systems: f: nixpkgs.lib.genAttrs systems (system: f system);
@@ -217,6 +222,38 @@
 
         environment.systemPackages = with pkgs; [
           tree
+
+          # Browsers (google-chrome has no aarch64 build)
+          chromium
+          firefox
+
+          # Editors
+          vim
+
+          # System utilities
+          htop
+          git
+        ];
+
+        # GNOME Desktop Environment
+        services.xserver.enable = true;
+        services.desktopManager.gnome.enable = true;
+        services.displayManager.gdm.enable = true;
+        services.displayManager.gdm.wayland = true;
+
+        # VS Code Server (remote SSH from your workstation)
+        imports = [ vscode-server.nixosModules.default ];
+        services.vscode-server.enable = true;
+
+        # nix-ld fallback for dynamically linked binaries
+        programs.nix-ld.enable = true;
+
+        # Fonts
+        fonts.enableDefaultPackages = true;
+        fonts.packages = with pkgs; [
+          noto-fonts
+          noto-fonts-color-emoji
+          nerd-fonts.jetbrains-mono
         ];
 
         system.nixos.tags = let
