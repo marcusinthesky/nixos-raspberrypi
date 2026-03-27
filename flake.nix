@@ -250,15 +250,23 @@
 
         networking = {
           useDHCP = false; # we manage interfaces explicitly
-
-          nat = {
-            enable = true;
-            externalInterface = "end0";      # WAN — Rain 5G
-            internalInterfaces = [ "eth0" ]; # LAN — switch + AX73 AP
-          };
-
-          # Use networkd for interface management
           useNetworkd = true;
+
+          # Use nftables for NAT (not iptables)
+          nftables.enable = true;
+          firewall.enable = lib.mkForce true;
+          firewall.trustedInterfaces = [ "eth0" ]; # trust LAN side
+        };
+
+        # nftables NAT rule
+        networking.nftables.tables.nat = {
+          family = "ip";
+          content = ''
+            chain postrouting {
+              type nat hook postrouting priority 100; policy accept;
+              oifname "end0" masquerade
+            }
+          '';
         };
 
         systemd.network = {
