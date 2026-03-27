@@ -233,6 +233,12 @@
           # System utilities
           htop
           git
+
+          # Network diagnostics
+          trippy
+          iperf3
+          tcpdump
+          ethtool
         ];
 
         # GNOME Desktop Environment
@@ -255,6 +261,58 @@
           noto-fonts-color-emoji
           nerd-fonts.jetbrains-mono
         ];
+
+        # ── Router / NAT configuration ──
+        # Pi acts as a gateway: Rain 5G (WAN) → Pi → Switch + AX73 AP (LAN)
+        # Interface mapping (from `ip link show`):
+        #   WAN = end0 (built-in ethernet → Rain 5G router)
+        #   LAN = eth0 (USB-Ethernet adapter → 8-port switch → AX73 AP)
+        #   enu1 = spare (for Spaces ethernet / bonding later)
+        boot.kernel.sysctl."net.ipv4.ip_forward" = 1;
+
+        networking = {
+          useDHCP = false; # we manage interfaces explicitly
+
+          nat = {
+            enable = true;
+            externalInterface = "end0";      # WAN — Rain 5G
+            internalInterfaces = [ "eth0" ]; # LAN — switch + AX73 AP
+          };
+
+          # Use networkd for interface management
+          useNetworkd = true;
+        };
+
+        systemd.network = {
+          enable = true;
+
+          # WAN interface — gets IP from Rain 5G via DHCP
+          networks."10-wan" = {
+            matchConfig.Name = "end0";
+            networkConfig = {
+              DHCP = "ipv4";
+              DNSOverTLS = false;
+            };
+            dhcpV4Config.RouteMetric = 100;
+          };
+
+          # LAN interface — static IP, serves as gateway for the team
+          networks."20-lan" = {
+            matchConfig.Name = "eth0";
+            address = [ "10.0.0.1/24" ];
+            networkConfig = {
+              DHCPServer = true;
+              IPMasquerade = "ipv4";
+            };
+            dhcpServerConfig = {
+              PoolOffset = 10;
+              PoolSize = 200;
+              EmitDNS = true;
+              DNS = [ "1.1.1.1" "8.8.8.8" ];
+              EmitRouter = true;
+            };
+          };
+        };
 
         system.nixos.tags = let
           cfg = config.boot.loader.raspberry-pi;
