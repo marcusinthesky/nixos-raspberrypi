@@ -238,10 +238,18 @@
         programs.nix-ld.enable = true;
 
         # ── Kiosk / Desktop configuration ──
-        # GNOME desktop environment for Google Meet kiosk
-        services.xserver.enable = true;
-        services.displayManager.gdm.enable = true;
-        services.desktopManager.gnome.enable = true;
+        # cage: minimal Wayland kiosk compositor — launches Chromium full-screen
+        # much smaller than a full DE; ideal for a single-app kiosk
+        users.users.kiosk = {
+          isNormalUser = true;
+          description = "Kiosk user";
+        };
+
+        services.cage = {
+          enable = true;
+          user = "kiosk";
+          program = "${pkgs.chromium}/bin/chromium --kiosk https://meet.google.com";
+        };
 
         # Audio via PipeWire (required for Google Meet calls)
         security.rtkit.enable = true;
@@ -252,7 +260,7 @@
           pulse.enable = true;
         };
 
-        # WiFi networking via NetworkManager (integrates with GNOME)
+        # WiFi via NetworkManager
         networking.networkmanager.enable = true;
 
         system.nixos.tags = let
