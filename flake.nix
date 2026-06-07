@@ -226,11 +226,8 @@
           htop
           git
 
-          # Network diagnostics
-          trippy
-          iperf3
-          tcpdump
-          ethtool
+          chromium   # browser for Google Meet
+          v4l-utils  # webcam utilities
         ];
 
         # VS Code Server (remote SSH from your workstation)
@@ -240,81 +237,23 @@
         # nix-ld fallback for dynamically linked binaries
         programs.nix-ld.enable = true;
 
-        # ── Router / NAT configuration ──
-        # Pi acts as a gateway with dual WAN:
-        #   WAN1 = end0 (built-in ethernet → Rain 5G router) — failover
-        #   WAN2 = enu1 (USB-Ethernet → Spaces office ethernet) — primary
-        #   LAN  = eth0 (USB-Ethernet → 8-port switch → AX73 AP)
-        boot.kernel.sysctl."net.ipv4.ip_forward" = 1;
+        # ── Kiosk / Desktop configuration ──
+        # GNOME desktop environment for Google Meet kiosk
+        services.xserver.enable = true;
+        services.displayManager.gdm.enable = true;
+        services.desktopManager.gnome.enable = true;
 
-        networking = {
-          useDHCP = false; # we manage interfaces explicitly
-          useNetworkd = true;
-
-          # Use nftables for NAT (not iptables)
-          nftables.enable = true;
-          firewall.enable = lib.mkForce true;
-          firewall.trustedInterfaces = [ "eth0" ]; # trust LAN side
-        };
-
-        # nftables NAT — masquerade out both WAN interfaces
-        networking.nftables.tables.nat = {
-          family = "ip";
-          content = ''
-            chain postrouting {
-              type nat hook postrouting priority 100; policy accept;
-              oifname { "end0", "enu1" } masquerade
-            }
-          '';
-        };
-
-        systemd.network = {
+        # Audio via PipeWire (required for Google Meet calls)
+        security.rtkit.enable = true;
+        hardware.pulseaudio.enable = false;
+        services.pipewire = {
           enable = true;
-
-          # Spaces WAN — clone laptop MAC to bypass captive portal
-          links."30-spaces" = {
-            matchConfig.OriginalName = "enu1";
-            linkConfig.MACAddress = "dc:97:ba:60:b7:a1";
-          };
-
-          # WAN1: Rain 5G — higher metric (failover)
-          networks."10-wan-rain" = {
-            matchConfig.Name = "end0";
-            networkConfig = {
-              DHCP = "ipv4";
-              DNSOverTLS = false;
-            };
-            dhcpV4Config.RouteMetric = 200; # lower priority
-          };
-
-          # WAN2: Spaces office ethernet — lower metric (preferred)
-          networks."15-wan-spaces" = {
-            matchConfig.Name = "enu1";
-            linkConfig.RequiredForOnline = "no"; # don't block boot if unplugged
-            networkConfig = {
-              DHCP = "ipv4";
-              DNSOverTLS = false;
-            };
-            dhcpV4Config.RouteMetric = 100; # higher priority
-          };
-
-          # LAN interface — static IP, serves as gateway for the team
-          networks."20-lan" = {
-            matchConfig.Name = "eth0";
-            address = [ "10.0.0.1/24" ];
-            networkConfig = {
-              DHCPServer = true;
-              IPMasquerade = "ipv4";
-            };
-            dhcpServerConfig = {
-              PoolOffset = 10;
-              PoolSize = 200;
-              EmitDNS = true;
-              DNS = [ "1.1.1.1" "8.8.8.8" ];
-              EmitRouter = true;
-            };
-          };
+          alsa.enable = true;
+          pulse.enable = true;
         };
+
+        # WiFi networking via NetworkManager (integrates with GNOME)
+        networking.networkmanager.enable = true;
 
         system.nixos.tags = let
           cfg = config.boot.loader.raspberry-pi;
@@ -353,6 +292,8 @@
           imports = with nixos-raspberrypi.nixosModules; [
             # Hardware configuration
             raspberry-pi-4.base
+            raspberry-pi-4.display-vc4
+            raspberry-pi-4.bluetooth
           ];
         })
         custom-user-config
@@ -364,6 +305,8 @@
             # Hardware configuration
             raspberry-pi-5.base
             raspberry-pi-5.page-size-16k
+            raspberry-pi-5.display-vc4
+            raspberry-pi-5.bluetooth
           ];
         })
         custom-user-config
